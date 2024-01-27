@@ -1,24 +1,22 @@
 #include <SFML/Graphics.hpp>
+#include <iostream>
+#include "Vec2.h"
+#include "Entity.h"
+
 
 int main()
 {
-    sf::RenderWindow window(sf::VideoMode(200, 200), "SFML works!");
-    sf::CircleShape shape(100.f);
-    shape.setFillColor(sf::Color::Green);
+ 
+    Vec2 v1(20, 70);
+    Vec2 v2(30, 10);
+    
+    
+    v1.normalize();
+   
+    std::cout << v1.x << " " << v1.y << std::endl;
+    std::cout << v1.length() << "\n";
 
-    while (window.isOpen())
-    {
-        sf::Event event;
-        while (window.pollEvent(event))
-        {
-            if (event.type == sf::Event::Closed)
-                window.close();
-        }
 
-        window.clear();
-        window.draw(shape);
-        window.display();
-    }
-
+    std::cout << '\a';
     return 0;
 }
