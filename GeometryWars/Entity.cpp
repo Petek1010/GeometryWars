@@ -18,5 +18,5 @@ const std::string& Entity::getTag() const
 
 void Entity::destroy()
 {
-    // TODO
+	m_active = false;
 }
