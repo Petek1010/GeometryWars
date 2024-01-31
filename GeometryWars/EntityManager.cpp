@@ -24,6 +24,7 @@ Entity* EntityManager::addEntity(const std::string& tag)
 		std::cout << "element of m_toAdd ID: " << i->getId() << "\n";
 	}
 	////////////////////////////////////////////////////////////
+	
 	return ent;
 }
 

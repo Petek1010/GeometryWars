@@ -22,7 +22,7 @@ class Game
 	bool m_paused = false;
 	bool m_running = true;
 
-	Entity* player = nullptr;
+	Entity* m_player = nullptr;
 
 	// Initialize the GameState
 	void init(const std::string& config);
