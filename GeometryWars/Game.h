@@ -2,6 +2,7 @@
 #include "Entity.h"
 #include "EntityManager.h"
 #include "SFML/Graphics.hpp"
+#include <random>
 
 struct PlayerConfig { int SR, CR, FR, FG, FB, OR, OG, OB, OT, V; float S; };
 struct EnemyConfig { int SR, CR, OR, OG, OB, OT, VMIN, VMAX, L, SI; float SMIN, SMAX; };
@@ -42,6 +43,8 @@ class Game
 	void spawnSmallEnemies(Entity* entity);
 	void spawnBullet(Entity* entity, const Vec2& mousePos);
 	void spawnSpecialWeapon(Entity* entity);
+
+	float getRandom(const float first, const float second) const;
 
 public:
 

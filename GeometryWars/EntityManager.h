@@ -23,5 +23,6 @@ public:
 	void update();
 	EntityVector& getEntities();
 	EntityVector& getEntities(const std::string& tag);
+	void removeDeadEntities(EntityVector& vector);
 	
 };

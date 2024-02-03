@@ -20,8 +20,8 @@ Entity* EntityManager::addEntity(const std::string& tag)
 	std::cout << "m_toAdd size: " << m_toAdd.size() << "\n";
 	for (auto& i : m_toAdd)
 	{
-		std::cout << "element of m_toAdd TAG: " << i->getTag() << "\n";
-		std::cout << "element of m_toAdd ID: " << i->getId() << "\n";
+		//std::cout << "element of m_toAdd TAG: " << i->getTag() << "\n";
+		//std::cout << "element of m_toAdd ID: " << i->getId() << "\n";
 	}
 	////////////////////////////////////////////////////////////
 	
@@ -37,19 +37,20 @@ void EntityManager::update()
 		m_entities.push_back(ent);
 		m_entityMap[ent->getTag()].push_back(ent);
 	}
-	
+
+	m_toAdd.clear();
 	// DEBUG////////////////////////////////////////////////////////////////////
-	std::cout << "------------" << "UPDATE" << "----------------" << "\n";
-	std::cout << "m_entities size: " << getEntities().size() << "\n";
+	//std::cout << "------------" << "UPDATE" << "----------------" << "\n";
+	//std::cout << "m_entities size: " << getEntities().size() << "\n";
 	for (auto& i : m_entities)
 	{
-		std::cout << "element of m_entities TAG: " << i->getTag() << "\n";
-		std::cout << "element of m_entities ID: " << i->getId() << "\n";
+		//std::cout << "element of m_entities TAG: " << i->getTag() << "\n";
+		//std::cout << "element of m_entities ID: " << i->getId() << "\n";
 	}
 	
 	for (auto& m : m_entityMap)
 	{
-		std::cout << "element of m_entityMap first: " << m.first << " " << m.second.size() << "\n";
+		//std::cout << "element of m_entityMap first: " << m.first << " " << m.second.size() << "\n";
 	}
 
 	//////////////////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +79,19 @@ void EntityManager::update()
 	//auto newEnd = std::remove_if(m_entities.begin(), m_entities.end(), readyToRemove);
 	//m_entities.erase(newEnd, m_entities.end());
 
-	m_toAdd.clear();
+
+	///////////////////// NEW IMPLEMENTATION ////////////////////////////////
+
+	// remove dead entities from the vector of all entities
+	removeDeadEntities(m_entities);
+
+	// remove entities from each vector in the entity map
+	/*for (auto& [tag, entityVec] : m_entityMap)
+	{
+
+	}*/
+
+	
 }
 
 EntityVector& EntityManager::getEntities()
@@ -88,18 +101,11 @@ EntityVector& EntityManager::getEntities()
 
 EntityVector& EntityManager::getEntities(const std::string& tag)
 {
-	// TODO: Test if correct
-	EntityVector entitiesByTag = {};
+	return m_entityMap[tag];
+}
 
-	for (auto& ent : m_entities)
-	{
-		if (ent->getTag() == tag)
-		{
-			entitiesByTag.push_back(ent);
-		}
-	}
-
-	return entitiesByTag;
+void EntityManager::removeDeadEntities(EntityVector& vector)
+{
 }
 
 
