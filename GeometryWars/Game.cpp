@@ -47,31 +47,95 @@ void Game::sMovement()
 {
 	m_player->cTransform->velocity = { 0,0 };
 
-	if (m_player->cInput->up)
+	// window border collision
+	float winX = m_window.getSize().x;
+	float winY = m_window.getSize().y;
+	float playerPosX = m_player->cTransform->pos.x;
+	float playerPosY = m_player->cTransform->pos.y;
+	float playerColl = m_player->cCollision->radius;
+
+	// Player movement
+	if (playerPosY - playerColl > 0 && playerPosY + playerColl < winY)
 	{
-		m_player->cTransform->velocity.y = -5.f;
+		if (m_player->cInput->up)
+		{
+			m_player->cTransform->velocity.y = -5.f;
+		}
+		else if (m_player->cInput->down)
+		{
+			m_player->cTransform->velocity.y = 5.f;
+		}
+		
 	}
-	else if (m_player->cInput->down)
+	else
 	{
-		m_player->cTransform->velocity.y = 5.f;
+		if (playerPosY - playerColl < 0 && m_player->cInput->down)
+		{
+			m_player->cTransform->velocity.y = 5.f;
+		}
+		if (playerPosY + playerColl > winY && m_player->cInput->up)
+		{
+			m_player->cTransform->velocity.y = -5.f;
+		}
 	}
 
-	if (m_player->cInput->left)
+	if (playerPosX - playerColl > 0 && playerPosX + playerColl < winX)
 	{
-		m_player->cTransform->velocity.x = -5.f;
+		if (m_player->cInput->left)
+		{
+			m_player->cTransform->velocity.x = -5.f;
+		}
+		else if (m_player->cInput->right)
+		{
+			m_player->cTransform->velocity.x = 5.f;
+		}
 	}
-	else if (m_player->cInput->right)
+	else
 	{
-		m_player->cTransform->velocity.x = 5.f;
+		if (playerPosX - playerColl < 0 && m_player->cInput->right)
+		{
+			m_player->cTransform->velocity.x = 5.f;
+		}
+		if (playerPosX + playerColl > winX && m_player->cInput->left)
+		{
+			m_player->cTransform->velocity.x = -5.f;
+		}
 	}
-
-
+	
 	// movement speed update
 	m_player->cTransform->pos.x += m_player->cTransform->velocity.x;
 	m_player->cTransform->pos.y += m_player->cTransform->velocity.y;
 
-	// TODO for every entity
+	
+	// Enemy movement
+	for (auto& entity : m_entities.getEntities("enemy"))
+	{
+		if (entity->cTransform->pos.x + entity->cCollision->radius > winX || entity->cTransform->pos.x - entity->cCollision->radius < 0.f)
+		{
+			entity->cTransform->velocity.x = -entity->cTransform->velocity.x;
+		}
+		else if (entity->cTransform->pos.y + entity->cCollision->radius > winY || entity->cTransform->pos.y - entity->cCollision->radius < 0.f)
+		{
+			entity->cTransform->velocity.y = -entity->cTransform->velocity.y;
+		}
 
+		entity->cTransform->pos += entity->cTransform->velocity;
+	}
+
+	// Bullet movement
+	for (auto& entity : m_entities.getEntities("bullet"))
+	{
+		if (entity->cTransform->pos.x + entity->cCollision->radius > winX || entity->cTransform->pos.x - entity->cCollision->radius < 0.f)
+		{
+			entity->cTransform->velocity.x = -entity->cTransform->velocity.x;
+		}
+		else if (entity->cTransform->pos.y + entity->cCollision->radius > winY || entity->cTransform->pos.y - entity->cCollision->radius < 0.f)
+		{
+			entity->cTransform->velocity.y = -entity->cTransform->velocity.y;
+		}
+
+		entity->cTransform->pos += entity->cTransform->velocity;
+	}
 }
 
 void Game::sUserInput()
@@ -141,11 +205,7 @@ void Game::sUserInput()
 		{
 			if (event.mouseButton.button == sf::Mouse::Left)
 			{
-				std::cout << "Shoot\n";
-				std::cout << event.mouseButton.x << " " << event.mouseButton.y << "\n";
-
-
-				// call spawn bullet
+				spawnBullet(m_player, Vec2(event.mouseButton.x, event.mouseButton.y));
 			}
 
 			if (event.mouseButton.button == sf::Mouse::Right)
@@ -178,16 +238,8 @@ void Game::sUserInput()
 
 void Game::sCollision()
 {
-	// window border collision
-	float winX = m_window.getSize().x;
-	float winY = m_window.getSize().y;
-	float playerColl = m_player->cCollision->radius;
 	
-	if ((m_player->cTransform->pos.y + playerColl) > winY)
-	{
-		std::cout << "COLLIDING\n";
-		m_player->cInput->down = false;
-	}
+	
 
 
 	for (auto& e : m_entities.getEntities())
@@ -226,6 +278,13 @@ void Game::sRender()
 		m_window.draw(enemy->cShape->shape);
 	}
 
+	// Set bullet
+	for (auto& bullet : m_entities.getEntities("bullet"))
+	{
+		bullet->cShape->shape.setPosition(bullet->cTransform->pos.x, bullet->cTransform->pos.y);
+
+		m_window.draw(bullet->cShape->shape);
+	}
 
 
 	m_window.display();	
@@ -246,7 +305,7 @@ void Game::spawnPlayer()
 	player->cTransform = new CTransfrom(Vec2(midX/2, midY/2), Vec2(1.0f, 1.0f), 0.f);
 	player->cShape = new CShape(32.f, 8, sf::Color(10, 10, 10), sf::Color(255, 0, 0), 4.f);
 	player->cInput = new CInput();
-	player->cCollision = new CCollision(32.f);
+	player->cCollision = new CCollision(36.f);
 	player->cScore = new CScore(0.f);
 
 	player->cShape->shape.setOrigin(32.f,32.f);
@@ -263,13 +322,14 @@ void Game::spawnEnemy()
 {
 	auto enemy = m_entities.addEntity("enemy");
 
-	float posX = getRandom(0.f, m_window.getSize().x);
-	float posY = getRandom(0.f, m_window.getSize().y);
+	enemy->cCollision = new CCollision(20.f);
+	float posX = getRandom(enemy->cCollision->radius, m_window.getSize().x - enemy->cCollision->radius);
+	float posY = getRandom(enemy->cCollision->radius, m_window.getSize().y - enemy->cCollision->radius);
 
 	enemy->cTransform = new CTransfrom(Vec2(posX, posY), Vec2(1.0f, 1.0f), 0.f);
 	enemy->cShape = new CShape(16.f, 3, sf::Color(0, 0, 255), sf::Color(255, 255, 255), 4.f);
-	enemy->cCollision = new CCollision(16.f);
-
+	
+	enemy->cShape->shape.setOrigin(16.f, 16.f);
 
 	// Record when the most recent enemy was spawned
 	m_lastEnemySpawnTime = m_currentFrame;
@@ -282,6 +342,20 @@ void Game::spawnSmallEnemies(Entity* entity)
 void Game::spawnBullet(Entity* entity, const Vec2& mousePos)
 {
 	auto bullet = m_entities.addEntity("bullet");
+
+	Vec2 playerOrigin = {entity->cTransform->pos.x, entity->cTransform->pos.y };
+	Vec2 bulletTargetLoc = mousePos;
+	Vec2 bulletDirect = (mousePos - playerOrigin);
+	bulletDirect.normalize();
+
+	bullet->cShape = new CShape(5.f, 32, sf::Color(255, 255, 255), sf::Color(255, 255, 255), 1.f);
+	bullet->cShape->shape.setOrigin(5.f, 5.f);
+	bullet->cCollision = new CCollision(8.f);
+	bullet->cTransform = new CTransfrom(playerOrigin, bulletDirect * 3.f, 0.f);
+
+	
+
+
 }
 
 void Game::spawnSpecialWeapon(Entity* entity)
