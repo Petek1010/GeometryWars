@@ -72,8 +72,9 @@ float Vec2::length() const
 
 void Vec2::normalize()
 {
-	x = x / length();
-	y = y / length();
+	float invLength = 1.0f / length();
+	x *= invLength;
+	y *= invLength;
 }
 
 float Vec2::distanceTo(const Vec2& rhs) const

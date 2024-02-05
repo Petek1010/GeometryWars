@@ -127,11 +127,13 @@ void Game::sMovement()
 	{
 		if (entity->cTransform->pos.x + entity->cCollision->radius > winX || entity->cTransform->pos.x - entity->cCollision->radius < 0.f)
 		{
-			entity->cTransform->velocity.x = -entity->cTransform->velocity.x;
+			//entity->cTransform->velocity.x = -entity->cTransform->velocity.x;
+			entity->destroy();
 		}
 		else if (entity->cTransform->pos.y + entity->cCollision->radius > winY || entity->cTransform->pos.y - entity->cCollision->radius < 0.f)
 		{
-			entity->cTransform->velocity.y = -entity->cTransform->velocity.y;
+			//entity->cTransform->velocity.y = -entity->cTransform->velocity.y;
+			entity->destroy();
 		}
 
 		entity->cTransform->pos += entity->cTransform->velocity;
@@ -181,19 +183,15 @@ void Game::sUserInput()
 			switch (event.key.code)
 			{
 			case sf::Keyboard::W:
-				std::cout << "W key Released\n";
 				m_player->cInput->up = false;
 				break;
 			case sf::Keyboard::S:
-				std::cout << "S key Released\n";
 				m_player->cInput->down = false;
 				break;
 			case sf::Keyboard::A:
-				std::cout << "A key Released\n";
 				m_player->cInput->left = false;
 				break;
 			case sf::Keyboard::D:
-				std::cout << "D key Released\n";
 				m_player->cInput->right = false;
 				break;
 			default:
@@ -238,13 +236,38 @@ void Game::sUserInput()
 
 void Game::sCollision()
 {
-	
-	
-
-
-	for (auto& e : m_entities.getEntities())
+	// Bullet enemy collision
+	for (auto& b : m_entities.getEntities("bullet"))
 	{
+		for (auto& e : m_entities.getEntities("enemy"))
+		{
+			Vec2 bulletLoc = { b->cTransform->pos.x, b->cTransform->pos.y };
+			Vec2 enemyLoc = { e->cTransform->pos.x, e->cTransform->pos.y };
+			Vec2 D = enemyLoc - bulletLoc;
+			float bothColl = (b->cCollision->radius + e->cCollision->radius);
 
+			if ((D.x * D.x + D.y * D.y) < (bothColl * bothColl))
+			{
+				e->destroy();
+				b->destroy();
+			}
+		}
+	}
+
+	for (auto& p : m_entities.getEntities("player"))
+	{
+		for (auto& e : m_entities.getEntities("enemy"))
+		{
+			Vec2 playerLoc = { p->cTransform->pos.x, p->cTransform->pos.y };
+			Vec2 enemyLoc = { e->cTransform->pos.x, e->cTransform->pos.y };
+			Vec2 D = enemyLoc - playerLoc;
+			float bothColl = (p->cCollision->radius + e->cCollision->radius);
+
+			if ((D.x * D.x + D.y * D.y) < (bothColl * bothColl))
+			{
+				std::cout << "RESTART GAME\n";
+			}
+		}
 	}
 }
 
@@ -286,12 +309,18 @@ void Game::sRender()
 		m_window.draw(bullet->cShape->shape);
 	}
 
+	
+
 
 	m_window.display();	
 }
 
 void Game::sLifespan()
 {
+	for (auto& b : m_entities.getEntities("bullet"))
+	{
+		b->cShape->shape.setFillColor(sf::Color(255, 255, 255, 50));
+	}
 }
 
 void Game::spawnPlayer()
@@ -325,10 +354,16 @@ void Game::spawnEnemy()
 	enemy->cCollision = new CCollision(20.f);
 	float posX = getRandom(enemy->cCollision->radius, m_window.getSize().x - enemy->cCollision->radius);
 	float posY = getRandom(enemy->cCollision->radius, m_window.getSize().y - enemy->cCollision->radius);
+	
 
 	enemy->cTransform = new CTransfrom(Vec2(posX, posY), Vec2(1.0f, 1.0f), 0.f);
-	enemy->cShape = new CShape(16.f, 3, sf::Color(0, 0, 255), sf::Color(255, 255, 255), 4.f);
-	
+	enemy->cShape = new CShape(
+		16.f, 
+		getRandom(3.f, 9.f), 
+		sf::Color(getRandom(0.f, 255.f), getRandom(0.f, 255.f), getRandom(0.f, 255.f)),
+		sf::Color(255, 255, 255), 
+		4.f);
+
 	enemy->cShape->shape.setOrigin(16.f, 16.f);
 
 	// Record when the most recent enemy was spawned
@@ -342,7 +377,7 @@ void Game::spawnSmallEnemies(Entity* entity)
 void Game::spawnBullet(Entity* entity, const Vec2& mousePos)
 {
 	auto bullet = m_entities.addEntity("bullet");
-
+	
 	Vec2 playerOrigin = {entity->cTransform->pos.x, entity->cTransform->pos.y };
 	Vec2 bulletTargetLoc = mousePos;
 	Vec2 bulletDirect = (mousePos - playerOrigin);
@@ -351,10 +386,10 @@ void Game::spawnBullet(Entity* entity, const Vec2& mousePos)
 	bullet->cShape = new CShape(5.f, 32, sf::Color(255, 255, 255), sf::Color(255, 255, 255), 1.f);
 	bullet->cShape->shape.setOrigin(5.f, 5.f);
 	bullet->cCollision = new CCollision(8.f);
-	bullet->cTransform = new CTransfrom(playerOrigin, bulletDirect * 3.f, 0.f);
+	bullet->cTransform = new CTransfrom(playerOrigin, bulletDirect * 5.f, 0.f);
+	bullet->cLifespan = new CLifespan(30,30);
 
 	
-
 
 }
 

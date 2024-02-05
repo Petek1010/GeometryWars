@@ -15,7 +15,6 @@ const std::string& Entity::getTag() const
    return m_tag;
 }
 
-
 void Entity::destroy()
 {
 	m_active = false;
