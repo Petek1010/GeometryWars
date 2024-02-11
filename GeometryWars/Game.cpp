@@ -13,23 +13,35 @@ void Game::run()
 	{
 		m_entities.update();
 
-		sEnemySpawner();
-		sMovement();
-		sCollision();
+		if (!m_paused)
+		{
+			sEnemySpawner();
+			sMovement();
+			sCollision();			
+		}
+
 		sUserInput();
 		sRender();
 
+		if (!m_entities.getEntities("player").size())
+		{
+			spawnPlayer();
+		}	
+
 		m_currentFrame++;
-	}
-	
-	//delete player1; TODO
-	delete m_player->cTransform;
+	}	
 }
 
 void Game::init(const std::string& config)
 {
 	//TODO: we read config.txt and asssign structs
+	// Import font 
+	if (!m_font.loadFromFile("D:/SFML_GameEngine/GeometryWars/Dosis.ttf"))
+	{
+		std::cerr << "Error opening the font file." << std::endl;
+	}
 
+	
 	m_window.create(sf::VideoMode(1280, 720), "Geometry Wars");
 	m_window.setFramerateLimit(60);
 
@@ -40,7 +52,14 @@ void Game::init(const std::string& config)
 
 void Game::setPaused(bool paused)
 {
-	// TODO
+	if (!paused)
+	{
+		m_paused = true;
+	}
+	else
+	{
+		m_paused = false;
+	}
 }
 
 void Game::sMovement()
@@ -64,8 +83,7 @@ void Game::sMovement()
 		else if (m_player->cInput->down)
 		{
 			m_player->cTransform->velocity.y = 5.f;
-		}
-		
+		}		
 	}
 	else
 	{
@@ -122,21 +140,28 @@ void Game::sMovement()
 		entity->cTransform->pos += entity->cTransform->velocity;
 	}
 
+	// Small enemy movement
+	for (auto entity : m_entities.getEntities("smallEnemy"))
+	{
+		sLifespan();
+		entity->cTransform->pos += entity->cTransform->velocity;
+	}
+
 	// Bullet movement
 	for (auto& entity : m_entities.getEntities("bullet"))
 	{
 		if (entity->cTransform->pos.x + entity->cCollision->radius > winX || entity->cTransform->pos.x - entity->cCollision->radius < 0.f)
-		{
-			//entity->cTransform->velocity.x = -entity->cTransform->velocity.x;
+		{			
 			entity->destroy();
 		}
 		else if (entity->cTransform->pos.y + entity->cCollision->radius > winY || entity->cTransform->pos.y - entity->cCollision->radius < 0.f)
 		{
-			//entity->cTransform->velocity.y = -entity->cTransform->velocity.y;
 			entity->destroy();
 		}
 
+		sLifespan();
 		entity->cTransform->pos += entity->cTransform->velocity;
+		
 	}
 }
 
@@ -210,11 +235,9 @@ void Game::sUserInput()
 			{
 				std::cout << "Spawn special\n";
 				std::cout << event.mouseButton.x << " " << event.mouseButton.y << "\n";
+				spawnSpecialWeapon(m_player);
 			}
-
-
 		}
-
 
 		// Window exit and pause
 		if (event.type == sf::Event::KeyPressed)
@@ -225,12 +248,10 @@ void Game::sUserInput()
 			}
 
 			if (event.key.code == sf::Keyboard::P)
-			{
-				// Pausing the game TODO
+			{				
+				setPaused(m_paused);
 			}
 		}
-
-
 	}
 }
 
@@ -248,8 +269,10 @@ void Game::sCollision()
 
 			if ((D.x * D.x + D.y * D.y) < (bothColl * bothColl))
 			{
+				spawnSmallEnemies(e);
 				e->destroy();
 				b->destroy();
+				m_player->cScore->score += e->cShape->shape.getPointCount();
 			}
 		}
 	}
@@ -266,6 +289,10 @@ void Game::sCollision()
 			if ((D.x * D.x + D.y * D.y) < (bothColl * bothColl))
 			{
 				std::cout << "RESTART GAME\n";
+				for (auto& e : m_entities.getEntities())
+				{
+					e->destroy();
+				}
 			}
 		}
 	}
@@ -283,6 +310,18 @@ void Game::sEnemySpawner()
 void Game::sRender()
 {
 	m_window.clear();
+
+	// Score text	
+	std::string scoreTxt = "SCORE: " + std::to_string(m_player->cScore->score);
+
+	m_text.setFont(m_font);
+	m_text.setPosition(sf::Vector2f(0.f, 0.f));
+	m_text.setString(scoreTxt);
+	m_text.setCharacterSize(32);
+	m_text.setFillColor(sf::Color::White);
+	m_window.draw(m_text);
+
+
 
 	// Set player
 	m_player->cShape->shape.setPosition(m_player->cTransform->pos.x, m_player->cTransform->pos.y);
@@ -309,17 +348,58 @@ void Game::sRender()
 		m_window.draw(bullet->cShape->shape);
 	}
 
-	
-
+	// Set small enemies	
+	for (auto& smallEnemy : m_entities.getEntities("smallEnemy"))
+	{
+		smallEnemy->cShape->shape.setPosition(smallEnemy->cTransform->pos.x, smallEnemy->cTransform->pos.y);
+		smallEnemy->cTransform->angle += 1.5f;
+		smallEnemy->cShape->shape.setRotation(smallEnemy->cTransform->angle);
+		m_window.draw(smallEnemy->cShape->shape);
+	}
 
 	m_window.display();	
 }
 
 void Game::sLifespan()
 {
+	
 	for (auto& b : m_entities.getEntities("bullet"))
 	{
-		b->cShape->shape.setFillColor(sf::Color(255, 255, 255, 50));
+		int fade = (b->cLifespan->remaining * 255) / b->cLifespan->total;
+		//int newFade = (b->cLifespan->remaining / b->cLifespan->total) * 255;
+		b->cShape->shape.setFillColor(sf::Color(255, 255, 255, fade));
+		b->cShape->shape.setOutlineColor(sf::Color(255, 255, 255, fade));
+
+		--b->cLifespan->remaining;
+
+		//std::cout << fade << "\n";
+
+		if (!fade)
+		{
+			b->destroy();
+		}
+	}
+
+	// small enemies
+	for (auto& b : m_entities.getEntities("smallEnemy"))
+	{
+		int fade = (b->cLifespan->remaining * 255) / b->cLifespan->total;
+
+		b->cShape->shape.setFillColor(sf::Color(b->cShape->shape.getFillColor().r,
+			b->cShape->shape.getFillColor().g, 
+			b->cShape->shape.getFillColor().b, 
+			fade));
+
+		b->cShape->shape.setOutlineColor(sf::Color(255, 255, 255, fade));
+
+		--b->cLifespan->remaining;
+
+		std::cout << fade << "\n";
+
+		if (!fade)
+		{
+			b->destroy();
+		}
 	}
 }
 
@@ -355,7 +435,7 @@ void Game::spawnEnemy()
 	float posX = getRandom(enemy->cCollision->radius, m_window.getSize().x - enemy->cCollision->radius);
 	float posY = getRandom(enemy->cCollision->radius, m_window.getSize().y - enemy->cCollision->radius);
 	
-
+	
 	enemy->cTransform = new CTransfrom(Vec2(posX, posY), Vec2(1.0f, 1.0f), 0.f);
 	enemy->cShape = new CShape(
 		16.f, 
@@ -372,6 +452,31 @@ void Game::spawnEnemy()
 
 void Game::spawnSmallEnemies(Entity* entity)
 {
+	
+	int edgeNum = entity->cShape->shape.getPointCount();
+	float divAngle = 360.f / edgeNum;
+
+	for (int i = 0; i < edgeNum; i++)
+	{
+		auto smallEnemy = m_entities.addEntity("smallEnemy");
+		float angleRadians = PI / 180.f * divAngle * i;
+
+		smallEnemy->cShape = new CShape(entity->cShape->shape.getRadius(),
+			edgeNum,
+			entity->cShape->shape.getFillColor(),
+			entity->cShape->shape.getOutlineColor(),
+			entity->cShape->shape.getOutlineThickness());
+
+		smallEnemy->cTransform = new CTransfrom(entity->cTransform->pos,
+			Vec2(entity->cTransform->velocity.x * std::cos(angleRadians), 
+				entity->cTransform->velocity.y * std::sin(angleRadians)),
+			entity->cTransform->angle);		
+
+		smallEnemy->cLifespan = new CLifespan(500, 500);
+
+	}
+	
+	
 }
 
 void Game::spawnBullet(Entity* entity, const Vec2& mousePos)
@@ -383,11 +488,11 @@ void Game::spawnBullet(Entity* entity, const Vec2& mousePos)
 	Vec2 bulletDirect = (mousePos - playerOrigin);
 	bulletDirect.normalize();
 
-	bullet->cShape = new CShape(5.f, 32, sf::Color(255, 255, 255), sf::Color(255, 255, 255), 1.f);
+	bullet->cShape = new CShape(5.f, 32, sf::Color(255, 255, 255), sf::Color(255, 255, 255), 0.f);
 	bullet->cShape->shape.setOrigin(5.f, 5.f);
 	bullet->cCollision = new CCollision(8.f);
 	bullet->cTransform = new CTransfrom(playerOrigin, bulletDirect * 5.f, 0.f);
-	bullet->cLifespan = new CLifespan(30,30);
+	bullet->cLifespan = new CLifespan(50,50);
 
 	
 
@@ -395,6 +500,10 @@ void Game::spawnBullet(Entity* entity, const Vec2& mousePos)
 
 void Game::spawnSpecialWeapon(Entity* entity)
 {
+	int edgeNum = m_player->cShape->shape.getPointCount();
+	float divAngle = 360.f / edgeNum;
+
+	// TODO
 }
 
 float Game::getRandom(const float first, const float second) const
