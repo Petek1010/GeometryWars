@@ -17,7 +17,8 @@ void Game::run()
 		{
 			sEnemySpawner();
 			sMovement();
-			sCollision();			
+			sCollision();	
+			sLifespan();
 		}
 
 		sUserInput();
@@ -143,7 +144,15 @@ void Game::sMovement()
 	// Small enemy movement
 	for (auto entity : m_entities.getEntities("smallEnemy"))
 	{
-		sLifespan();
+		if (entity->cTransform->pos.x + entity->cCollision->radius > winX || entity->cTransform->pos.x - entity->cCollision->radius < 0.f)
+		{
+			entity->cTransform->velocity.x = -entity->cTransform->velocity.x;
+		}
+		else if (entity->cTransform->pos.y + entity->cCollision->radius > winY || entity->cTransform->pos.y - entity->cCollision->radius < 0.f)
+		{
+			entity->cTransform->velocity.y = -entity->cTransform->velocity.y;
+		}
+
 		entity->cTransform->pos += entity->cTransform->velocity;
 	}
 
@@ -152,16 +161,14 @@ void Game::sMovement()
 	{
 		if (entity->cTransform->pos.x + entity->cCollision->radius > winX || entity->cTransform->pos.x - entity->cCollision->radius < 0.f)
 		{			
-			entity->destroy();
+			entity->cTransform->velocity.x = -entity->cTransform->velocity.x;
 		}
 		else if (entity->cTransform->pos.y + entity->cCollision->radius > winY || entity->cTransform->pos.y - entity->cCollision->radius < 0.f)
 		{
-			entity->destroy();
+			entity->cTransform->velocity.y = -entity->cTransform->velocity.y;
 		}
 
-		sLifespan();
-		entity->cTransform->pos += entity->cTransform->velocity;
-		
+		entity->cTransform->pos += entity->cTransform->velocity;		
 	}
 }
 
@@ -170,7 +177,7 @@ void Game::sUserInput()
 	sf::Event event;
 	while (m_window.pollEvent(event))
 	{
-		// this event riggers when the window is closed
+		// this event triggers when the window is closed
 		if (event.type == sf::Event::Closed)
 		{
 			m_running = false;
@@ -182,19 +189,19 @@ void Game::sUserInput()
 			switch (event.key.code)
 			{
 			case sf::Keyboard::W:
-				std::cout << "W key Pressed\n";
+				//std::cout << "W key Pressed\n";
 				m_player->cInput->up = true;
 				break;
 			case sf::Keyboard::S:
-				std::cout << "S key Pressed\n";
+				//std::cout << "S key Pressed\n";
 				m_player->cInput->down = true;
 				break;
 			case sf::Keyboard::A:
-				std::cout << "A key Pressed\n";
+				//std::cout << "A key Pressed\n";
 				m_player->cInput->left = true;
 				break;
 			case sf::Keyboard::D:
-				std::cout << "D key Pressed\n";
+				//std::cout << "D key Pressed\n";
 				m_player->cInput->right = true;
 				break;
 			default: 
@@ -277,6 +284,7 @@ void Game::sCollision()
 		}
 	}
 
+	// Player enemy collision
 	for (auto& p : m_entities.getEntities("player"))
 	{
 		for (auto& e : m_entities.getEntities("enemy"))
@@ -321,13 +329,19 @@ void Game::sRender()
 	m_text.setFillColor(sf::Color::White);
 	m_window.draw(m_text);
 
-
+	// Info text
+	sf::Text escTxt;
+	escTxt.setFont(m_font);
+	escTxt.setPosition(sf::Vector2f(0.f, m_window.getSize().y - 2 * escTxt.getCharacterSize()));
+	escTxt.setString("'ESC' to exit \n 'P' to pause");
+	escTxt.setCharacterSize(20);
+	escTxt.setFillColor(sf::Color::White);
+	m_window.draw(escTxt);
 
 	// Set player
 	m_player->cShape->shape.setPosition(m_player->cTransform->pos.x, m_player->cTransform->pos.y);
 	m_player->cTransform->angle += 1.0f;
 	m_player->cShape->shape.setRotation(m_player->cTransform->angle);
-
 	m_window.draw(m_player->cShape->shape);
 	
 	// Set enemy
@@ -336,7 +350,6 @@ void Game::sRender()
 		enemy->cShape->shape.setPosition(enemy->cTransform->pos.x, enemy->cTransform->pos.y);
 		enemy->cTransform->angle += 1.5f;
 		enemy->cShape->shape.setRotation(enemy->cTransform->angle);
-
 		m_window.draw(enemy->cShape->shape);
 	}
 
@@ -344,7 +357,6 @@ void Game::sRender()
 	for (auto& bullet : m_entities.getEntities("bullet"))
 	{
 		bullet->cShape->shape.setPosition(bullet->cTransform->pos.x, bullet->cTransform->pos.y);
-
 		m_window.draw(bullet->cShape->shape);
 	}
 
@@ -362,17 +374,14 @@ void Game::sRender()
 
 void Game::sLifespan()
 {
-	
+	// bullet lifespan
 	for (auto& b : m_entities.getEntities("bullet"))
 	{
 		int fade = (b->cLifespan->remaining * 255) / b->cLifespan->total;
-		//int newFade = (b->cLifespan->remaining / b->cLifespan->total) * 255;
 		b->cShape->shape.setFillColor(sf::Color(255, 255, 255, fade));
 		b->cShape->shape.setOutlineColor(sf::Color(255, 255, 255, fade));
 
 		--b->cLifespan->remaining;
-
-		//std::cout << fade << "\n";
 
 		if (!fade)
 		{
@@ -380,7 +389,7 @@ void Game::sLifespan()
 		}
 	}
 
-	// small enemies
+	// small enemy lifespan
 	for (auto& b : m_entities.getEntities("smallEnemy"))
 	{
 		int fade = (b->cLifespan->remaining * 255) / b->cLifespan->total;
@@ -422,29 +431,30 @@ void Game::spawnPlayer()
 	
 	m_player = player;
 
-	 
-
-	
 }
 
 void Game::spawnEnemy()
 {
 	auto enemy = m_entities.addEntity("enemy");
 
-	enemy->cCollision = new CCollision(20.f);
+	enemy->cShape = new CShape(
+		22.f,
+		getRandom(3.f, 9.f),
+		sf::Color(getRandom(0.f, 255.f), getRandom(0.f, 255.f), getRandom(0.f, 255.f)),
+		sf::Color(255, 255, 255),
+		3.f);
+
+	enemy->cCollision = new CCollision(enemy->cShape->shape.getRadius() + 4.f);
 	float posX = getRandom(enemy->cCollision->radius, m_window.getSize().x - enemy->cCollision->radius);
 	float posY = getRandom(enemy->cCollision->radius, m_window.getSize().y - enemy->cCollision->radius);
 	
 	
-	enemy->cTransform = new CTransfrom(Vec2(posX, posY), Vec2(1.0f, 1.0f), 0.f);
-	enemy->cShape = new CShape(
-		16.f, 
-		getRandom(3.f, 9.f), 
-		sf::Color(getRandom(0.f, 255.f), getRandom(0.f, 255.f), getRandom(0.f, 255.f)),
-		sf::Color(255, 255, 255), 
-		4.f);
+	enemy->cTransform = new CTransfrom(
+		Vec2(posX, posY), 
+		Vec2(getRandom(-3.f,3.f), getRandom(-3.f, 3.f)),
+		0.f);
 
-	enemy->cShape->shape.setOrigin(16.f, 16.f);
+	enemy->cShape->shape.setOrigin(enemy->cShape->shape.getRadius(), enemy->cShape->shape.getRadius());
 
 	// Record when the most recent enemy was spawned
 	m_lastEnemySpawnTime = m_currentFrame;
@@ -468,15 +478,14 @@ void Game::spawnSmallEnemies(Entity* entity)
 			entity->cShape->shape.getOutlineThickness());
 
 		smallEnemy->cTransform = new CTransfrom(entity->cTransform->pos,
-			Vec2(entity->cTransform->velocity.x * std::cos(angleRadians), 
-				entity->cTransform->velocity.y * std::sin(angleRadians)),
-			entity->cTransform->angle);		
+			Vec2(1.f * std::cos(angleRadians), 
+				 1.f * std::sin(angleRadians)),
+			entity->cTransform->angle);	
 
-		smallEnemy->cLifespan = new CLifespan(500, 500);
+		smallEnemy->cCollision = new CCollision(entity->cCollision->radius);
 
-	}
-	
-	
+		smallEnemy->cLifespan = new CLifespan(60, 60);
+	}	
 }
 
 void Game::spawnBullet(Entity* entity, const Vec2& mousePos)
@@ -492,10 +501,7 @@ void Game::spawnBullet(Entity* entity, const Vec2& mousePos)
 	bullet->cShape->shape.setOrigin(5.f, 5.f);
 	bullet->cCollision = new CCollision(8.f);
 	bullet->cTransform = new CTransfrom(playerOrigin, bulletDirect * 5.f, 0.f);
-	bullet->cLifespan = new CLifespan(50,50);
-
-	
-
+	bullet->cLifespan = new CLifespan(100,100);
 }
 
 void Game::spawnSpecialWeapon(Entity* entity)
