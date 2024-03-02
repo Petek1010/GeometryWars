@@ -22,8 +22,10 @@ class Game
 	EnemyConfig m_enemyConfig;
 	BulletConfig m_bulletConfig;
 	int m_score = 0;
+	int m_bossScore = 0;
 	int m_currentFrame = 0;
 	int m_lastEnemySpawnTime = 0;
+	int m_lastSpecialWeaponSpawnTime = 0;
 	bool m_paused = false;
 	bool m_running = true;
 
@@ -44,6 +46,7 @@ class Game
 	// Functions
 	void spawnPlayer();
 	void spawnEnemy();
+	void spawnBoss();
 	void spawnSmallEnemies(Entity* entity);
 	void spawnBullet(Entity* entity, const Vec2& mousePos);
 	void spawnSpecialWeapon(Entity* entity);

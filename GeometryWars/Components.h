@@ -72,3 +72,4 @@ public:
 	CLifespan(int rem, int tot) : remaining(rem), total(tot) {}
 
 };
+

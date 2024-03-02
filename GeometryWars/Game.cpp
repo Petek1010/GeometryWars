@@ -27,6 +27,7 @@ void Game::run()
 		if (!m_entities.getEntities("player").size())
 		{
 			spawnPlayer();
+			m_lastSpecialWeaponSpawnTime = 0;
 		}	
 
 		m_currentFrame++;
@@ -141,6 +142,21 @@ void Game::sMovement()
 		entity->cTransform->pos += entity->cTransform->velocity;
 	}
 
+	// Boss movement
+	for (auto& entity : m_entities.getEntities("boss"))
+	{
+		if (entity->cTransform->pos.x + entity->cCollision->radius > winX || entity->cTransform->pos.x - entity->cCollision->radius < 0.f)
+		{
+			entity->cTransform->velocity.x = -entity->cTransform->velocity.x;
+		}
+		else if (entity->cTransform->pos.y + entity->cCollision->radius > winY || entity->cTransform->pos.y - entity->cCollision->radius < 0.f)
+		{
+			entity->cTransform->velocity.y = -entity->cTransform->velocity.y;
+		}
+
+		entity->cTransform->pos += entity->cTransform->velocity;
+	}
+
 	// Small enemy movement
 	for (auto entity : m_entities.getEntities("smallEnemy"))
 	{
@@ -169,6 +185,21 @@ void Game::sMovement()
 		}
 
 		entity->cTransform->pos += entity->cTransform->velocity;		
+	}
+
+	// Special bullet movement
+	for (auto entity : m_entities.getEntities("specialBullet"))
+	{
+		if (entity->cTransform->pos.x + entity->cCollision->radius > winX || entity->cTransform->pos.x - entity->cCollision->radius < 0.f)
+		{
+			entity->cTransform->velocity.x = -entity->cTransform->velocity.x;
+		}
+		else if (entity->cTransform->pos.y + entity->cCollision->radius > winY || entity->cTransform->pos.y - entity->cCollision->radius < 0.f)
+		{
+			entity->cTransform->velocity.y = -entity->cTransform->velocity.y;
+		}
+
+		entity->cTransform->pos += entity->cTransform->velocity;
 	}
 }
 
@@ -239,10 +270,13 @@ void Game::sUserInput()
 			}
 
 			if (event.mouseButton.button == sf::Mouse::Right)
-			{
-				std::cout << "Spawn special\n";
-				std::cout << event.mouseButton.x << " " << event.mouseButton.y << "\n";
-				spawnSpecialWeapon(m_player);
+			{					
+				if (m_currentFrame - m_lastSpecialWeaponSpawnTime >= 100)
+				{					
+					m_lastSpecialWeaponSpawnTime = m_currentFrame;
+					spawnSpecialWeapon(m_player);				
+					
+				}					
 			}
 		}
 
@@ -266,6 +300,52 @@ void Game::sCollision()
 {
 	// Bullet enemy collision
 	for (auto& b : m_entities.getEntities("bullet"))
+	{
+		for (auto& e : m_entities.getEntities("enemy"))
+		{
+			Vec2 bulletLoc = { b->cTransform->pos.x, b->cTransform->pos.y };
+			Vec2 enemyLoc = { e->cTransform->pos.x, e->cTransform->pos.y };
+			Vec2 D = enemyLoc - bulletLoc;
+			float bothColl = (b->cCollision->radius + e->cCollision->radius);
+
+			if ((D.x * D.x + D.y * D.y) < (bothColl * bothColl))
+			{
+				spawnSmallEnemies(e);
+				e->destroy();
+				b->destroy();
+				m_player->cScore->score += e->cShape->shape.getPointCount();
+				m_bossScore++;
+			}
+		}
+	}
+
+	// Bullet boss collision
+	for (auto& b : m_entities.getEntities("bullet"))
+	{
+		for (auto& e : m_entities.getEntities("boss"))
+		{
+			Vec2 bulletLoc = { b->cTransform->pos.x, b->cTransform->pos.y };
+			Vec2 enemyLoc = { e->cTransform->pos.x, e->cTransform->pos.y };
+			Vec2 D = enemyLoc - bulletLoc;
+			float bothColl = (b->cCollision->radius + e->cCollision->radius);
+
+			if ((D.x * D.x + D.y * D.y) < (bothColl * bothColl))
+			{
+				b->destroy();
+				e->cLifespan->total -= e->cLifespan->remaining;
+
+				if (e->cLifespan->total <= 0)
+				{
+					spawnSmallEnemies(e);
+					e->destroy();
+					m_player->cScore->score += (e->cShape->shape.getPointCount() * 2);					
+				}				
+			}
+		}
+	}
+
+	// Special bullet enemy collision
+	for (auto& b : m_entities.getEntities("specialBullet"))
 	{
 		for (auto& e : m_entities.getEntities("enemy"))
 		{
@@ -304,14 +384,41 @@ void Game::sCollision()
 			}
 		}
 	}
+
+	// Player boss collision
+	for (auto& p : m_entities.getEntities("player"))
+	{
+		for (auto& e : m_entities.getEntities("boss"))
+		{
+			Vec2 playerLoc = { p->cTransform->pos.x, p->cTransform->pos.y };
+			Vec2 enemyLoc = { e->cTransform->pos.x, e->cTransform->pos.y };
+			Vec2 D = enemyLoc - playerLoc;
+			float bothColl = (p->cCollision->radius + e->cCollision->radius);
+
+			if ((D.x * D.x + D.y * D.y) < (bothColl * bothColl))
+			{
+				std::cout << "RESTART GAME\n";
+				for (auto& e : m_entities.getEntities())
+				{
+					e->destroy();
+				}
+			}
+		}
+	}
 }
 
 void Game::sEnemySpawner()
 {	
-	int timeForSpawn = 250;
-	if (m_currentFrame - m_lastEnemySpawnTime == timeForSpawn)
+	int timeForSpawn = 100;	
+
+	if (m_currentFrame - m_lastEnemySpawnTime >= timeForSpawn)
 	{
 		spawnEnemy();		
+	}
+	if (m_bossScore > 5)
+	{
+		spawnBoss();
+		m_bossScore = 0;
 	}
 }
 
@@ -328,6 +435,32 @@ void Game::sRender()
 	m_text.setCharacterSize(32);
 	m_text.setFillColor(sf::Color::White);
 	m_window.draw(m_text);
+
+	// Cooldown text
+	sf::Color markColor;
+	if (m_currentFrame - m_lastSpecialWeaponSpawnTime < 100.f)
+	{		
+		markColor = sf::Color::Red;
+	}
+	else
+	{		
+		markColor = sf::Color::Green;
+	}
+
+	sf::CircleShape cooldwnMark;
+	cooldwnMark.setPointCount(32);
+	cooldwnMark.setFillColor(markColor);
+	cooldwnMark.setPosition(110.f, 40.f);
+	cooldwnMark.setRadius(5.f);
+	m_window.draw(cooldwnMark);
+
+	sf::Text specTxt;
+	specTxt.setFont(m_font);
+	specTxt.setPosition(0.f, 35.f);
+	specTxt.setString("SPECIAL WEAPON: ");
+	specTxt.setCharacterSize(15);
+	specTxt.setFillColor(sf::Color::White);
+	m_window.draw(specTxt);
 
 	// Info text
 	sf::Text escTxt;
@@ -353,11 +486,27 @@ void Game::sRender()
 		m_window.draw(enemy->cShape->shape);
 	}
 
+	// Set boss
+	for (auto boss : m_entities.getEntities("boss"))
+	{
+		boss->cShape->shape.setPosition(boss->cTransform->pos.x, boss->cTransform->pos.y);
+		boss->cTransform->angle += 1.f;
+		boss->cShape->shape.setRotation(boss->cTransform->angle);
+		m_window.draw(boss->cShape->shape);
+	}
+
 	// Set bullet
 	for (auto& bullet : m_entities.getEntities("bullet"))
 	{
 		bullet->cShape->shape.setPosition(bullet->cTransform->pos.x, bullet->cTransform->pos.y);
 		m_window.draw(bullet->cShape->shape);
+	}
+
+	// set special bullet
+	for (auto specialBullet : m_entities.getEntities("specialBullet"))
+	{
+		specialBullet->cShape->shape.setPosition(specialBullet->cTransform->pos.x, specialBullet->cTransform->pos.y);
+		m_window.draw(specialBullet->cShape->shape);
 	}
 
 	// Set small enemies	
@@ -389,6 +538,27 @@ void Game::sLifespan()
 		}
 	}
 
+	// special bullet lifespan
+	for (auto& b : m_entities.getEntities("specialBullet"))
+	{
+		int fade = (b->cLifespan->remaining * 255) / b->cLifespan->total;
+		b->cShape->shape.setFillColor(sf::Color(255, 255, 0, fade));
+		b->cShape->shape.setOutlineColor(sf::Color(255, 255, 255, fade));
+
+		--b->cLifespan->remaining;
+
+		if (!fade)
+		{
+			b->destroy();
+		}
+	}
+
+	// boss lifespan
+	for (auto e : m_entities.getEntities("boss"))
+	{		
+		e->cShape->shape.setOutlineThickness(e->cLifespan->total/10.f);
+	}
+
 	// small enemy lifespan
 	for (auto& b : m_entities.getEntities("smallEnemy"))
 	{
@@ -401,9 +571,7 @@ void Game::sLifespan()
 
 		b->cShape->shape.setOutlineColor(sf::Color(255, 255, 255, fade));
 
-		--b->cLifespan->remaining;
-
-		std::cout << fade << "\n";
+		--b->cLifespan->remaining;		
 
 		if (!fade)
 		{
@@ -419,15 +587,13 @@ void Game::spawnPlayer()
 	float midX = m_window.getSize().x;
 	float midY = m_window.getSize().y;
 
-
 	player->cTransform = new CTransfrom(Vec2(midX/2, midY/2), Vec2(1.0f, 1.0f), 0.f);
 	player->cShape = new CShape(32.f, 8, sf::Color(10, 10, 10), sf::Color(255, 0, 0), 4.f);
 	player->cInput = new CInput();
 	player->cCollision = new CCollision(36.f);
 	player->cScore = new CScore(0.f);
 
-	player->cShape->shape.setOrigin(32.f,32.f);
-	
+	player->cShape->shape.setOrigin(32.f,32.f);	
 	
 	m_player = player;
 
@@ -458,6 +624,30 @@ void Game::spawnEnemy()
 
 	// Record when the most recent enemy was spawned
 	m_lastEnemySpawnTime = m_currentFrame;
+}
+
+void Game::spawnBoss()
+{
+	auto boss = m_entities.addEntity("boss");
+	float grayRnd = getRandom(0.f, 255.f);
+
+	boss->cShape = new CShape(
+		40.f,
+		getRandom(3.f, 9.f),
+		sf::Color(0, 0, 0),
+		sf::Color(255, 0, 0),
+		10.f);
+
+	boss->cCollision = new CCollision(boss->cShape->shape.getRadius() + 4.f);
+	float posX = getRandom(boss->cCollision->radius, m_window.getSize().x - boss->cCollision->radius);
+	float posY = getRandom(boss->cCollision->radius, m_window.getSize().y - boss->cCollision->radius);
+
+	boss->cTransform = new CTransfrom(
+		Vec2(posX, posY),
+		Vec2(getRandom(-3.f, 3.f), getRandom(-3.f, 3.f)),
+		0.f);
+
+	boss->cLifespan = new CLifespan(10, 100);		
 }
 
 void Game::spawnSmallEnemies(Entity* entity)
@@ -500,16 +690,35 @@ void Game::spawnBullet(Entity* entity, const Vec2& mousePos)
 	bullet->cShape = new CShape(5.f, 32, sf::Color(255, 255, 255), sf::Color(255, 255, 255), 0.f);
 	bullet->cShape->shape.setOrigin(5.f, 5.f);
 	bullet->cCollision = new CCollision(8.f);
-	bullet->cTransform = new CTransfrom(playerOrigin, bulletDirect * 5.f, 0.f);
-	bullet->cLifespan = new CLifespan(100,100);
+	bullet->cTransform = new CTransfrom(playerOrigin, bulletDirect * 10.f, 0.f);
+	bullet->cLifespan = new CLifespan(60,60);
 }
 
 void Game::spawnSpecialWeapon(Entity* entity)
 {
-	int edgeNum = m_player->cShape->shape.getPointCount();
-	float divAngle = 360.f / edgeNum;
+	// arg entity is player
+	int edgeNum = entity->cShape->shape.getPointCount();
+	float divAngle = 360.f / edgeNum;	
+	
+	for (int i = 0; i < edgeNum; i++)
+	{
+		auto specialBullet = m_entities.addEntity("specialBullet");
+		float angleRadians = PI / 180.f * divAngle * i;
 
-	// TODO
+		specialBullet->cShape = new CShape(5.f, 32, sf::Color(255, 255, 0), sf::Color(255, 255, 255), 0.f);
+		specialBullet->cShape->shape.setOrigin(5.f, 5.f);
+		specialBullet->cCollision = new CCollision(8.f);
+
+		specialBullet->cTransform = new CTransfrom(
+			entity->cTransform->pos,
+			Vec2(5.f * std::cos(angleRadians),
+				5.f * std::sin(angleRadians)),
+			0.f);
+
+		specialBullet->cLifespan = new CLifespan(100, 100);
+	}
+
+	m_lastSpecialWeaponSpawnTime = m_currentFrame;
 }
 
 float Game::getRandom(const float first, const float second) const

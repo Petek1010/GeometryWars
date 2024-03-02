@@ -55,6 +55,7 @@ void EntityManager::removeDeadEntities(EntityVector& vector)
 	auto EndVec = std::remove_if(vector.begin(), vector.end(), [](Entity* entity) {return !entity->IsActive(); });
 	vector.erase(EndVec, vector.end());
 
+	
 }
 
 
